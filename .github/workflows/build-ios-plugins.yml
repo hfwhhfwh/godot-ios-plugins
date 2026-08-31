@@ -1,0 +1,51 @@
+name: Build iOS Plugins
+
+on:
+  workflow_dispatch:  # 手动触发
+    inputs:
+      plugin:
+        description: 'Plugin name (e.g., inappstore, gamecenter)'
+        required: true
+        default: 'inappstore'
+      godot_version:
+        description: 'Godot version tag (e.g., 4.6-stable)'
+        required: true
+        default: '4.6-stable'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python & SCons
+        run: |
+          brew install scons
+
+      - name: Checkout Godot version
+        run: |
+          cd godot
+          git fetch
+          git checkout ${{ github.event.inputs.godot_version }}
+
+      - name: Generate Godot headers
+        run: |
+          cd godot
+          scons platform=ios target=editor -j4
+
+      - name: Build plugin xcframework (debug)
+        run: |
+          ./scripts/generate_xcframework.sh ${{ github.event.inputs.plugin }} debug 4.0
+
+      - name: Build plugin xcframework (release_debug)
+        run: |
+          ./scripts/generate_xcframework.sh ${{ github.event.inputs.plugin }} release_debug 4.0
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.inputs.plugin }}-xcframeworks
+          path: bin/*.xcframework
