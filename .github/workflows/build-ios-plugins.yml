@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       plugin:
-        description: 'Plugin name (e.g., inappstore, gamecenter)'
+        description: 'Plugin name (e.g., photo_picker, inappstore, gamecenter)'
         required: true
-        default: 'inappstore'
+        default: 'photo_picker'
       godot_version:
         description: 'Godot version tag (e.g., 4.6-stable)'
         required: true
@@ -30,11 +30,31 @@ jobs:
           git fetch --tags --force
           git checkout ${{ github.event.inputs.godot_version }}
 
-      - name: Generate Godot headers
+      # ============================================
+      # 关键修正 1：构建所有需要的 Godot 模板
+      # ============================================
+      # 插件的 debug/release_debug/release 需要对应 Godot 的库
+      # 为了节省时间和空间，至少构建 template_release 和 template_debug
+      - name: Generate Godot headers & libs (Release)
         run: |
           cd godot
-          scons platform=ios target=editor -j4
+          scons platform=ios target=template_release arch=arm64
 
+      - name: Generate Godot headers & libs (Debug)
+        run: |
+          cd godot
+          scons platform=ios target=template_debug arch=arm64
+
+      # ============================================
+      # 关键修正 2：构建 release 版插件（用于正式导出）
+      # ============================================
+      - name: Build plugin xcframework (release)
+        run: |
+          ./scripts/generate_xcframework.sh ${{ github.event.inputs.plugin }} release 4.0
+
+      # ============================================
+      # 可选：保留 debug 和 release_debug（用于调试）
+      # ============================================
       - name: Build plugin xcframework (debug)
         run: |
           ./scripts/generate_xcframework.sh ${{ github.event.inputs.plugin }} debug 4.0
